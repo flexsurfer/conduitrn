@@ -23,7 +23,8 @@
                                  style))])
 
 (defn button [props]
-  [ui/button (merge {:color "#5cb85c"} props)])
+  [rn/view {:style {:align-items :center :margin-vertical 5}}
+   [ui/button (merge {:color "#5cb85c"} props)]])
 
 (defn keyboard-avoiding-view [props & children]
   (into [other/keyboard-avoiding-view

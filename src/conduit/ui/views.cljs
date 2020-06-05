@@ -14,7 +14,13 @@
             [conduit.ui.edit.views :as editor]
             [conduit.ui.settings.views :as settings]
             [conduit.ui.article.views :as article]
-            [conduit.ui.tags.views :as tags]))
+            [conduit.ui.tags.views :as tags]
+            [steroid.rn.components.platform :as platform]
+            [steroid.rn.components.status-bar :as status-bar]))
+
+(when platform/android?
+  (status-bar/set-bar-style "dark-content")
+  (status-bar/set-translucent true))
 
 (def tab-icons
   {"home"    "md-home"

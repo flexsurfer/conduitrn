@@ -78,7 +78,7 @@ import com.android.build.OutputFile
  */
 
 project.ext.react = [
-    enableHermes: false,  // clean and rebuild if changing
+    enableHermes: true,  // clean and rebuild if changing
 ]
 
 apply from: "../../node_modules/react-native/react.gradle"
@@ -144,6 +144,12 @@ android {
         }
     }
     signingConfigs {
+        release {
+          storeFile file('conduitrn.keystore')
+          storePassword 'testrn'
+          keyAlias 'conduitrnkey'
+          keyPassword 'testrn'
+        }
         debug {
             storeFile file('debug.keystore')
             storePassword 'android'
@@ -156,9 +162,7 @@ android {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://facebook.github.io/react-native/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
@@ -222,4 +226,9 @@ task copyDownloadableDepsToLibs(type: Copy) {
     into 'libs'
 }
 
+project.ext.vectoricons = [
+    iconFontNames: [ 'Ionicons.ttf' ] // Name of the font files you want to copy
+]
+
+apply from: "../../node_modules/react-native-vector-icons/fonts.gradle"
 apply from: file("../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle"); applyNativeModulesAppBuildGradle(project)
