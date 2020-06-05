@@ -59,6 +59,4 @@ buck-out/
 /ios/Pods/
 
 # Project exclude paths
-/android/
 /app/
-/ios/
