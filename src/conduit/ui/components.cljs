@@ -26,6 +26,25 @@
   [rn/view {:style {:align-items :center :margin-vertical 5}}
    [ui/button (merge {:color "#5cb85c"} props)]])
 
+(defn text-button [title handler]
+  [rn/view {:style {:align-items :center :margin-vertical 5}}
+   [touchable/touchable-opacity {:on-press handler}
+    [rn/view {:style {:padding-horizontal 20 :padding-vertical 10}}
+     [rn/text {:style {:color "#5cb85c"}} title]]]])
+
+(defn square-button [icon handler]
+  [touchable/touchable-opacity {:on-press handler}
+   [rn/view {:style {:width 40 :height 40 :justify-content :center}}
+    [ion-icons {:name icon :size 30}]]])
+
+(defn back-button
+  ([title] (back-button title #(re-frame/dispatch [:navigate-back])))
+  ([title handler]
+   [rn/view {:style {:flex-direction :row :align-items :center :margin-horizontal 20
+                     :margin-vertical 10}}
+    [square-button "ios-arrow-back" handler]
+    [rn/text {:style {:font-size 20 :margin-left 10}} title]]))
+
 (defn keyboard-avoiding-view [props & children]
   (into [other/keyboard-avoiding-view
          (merge {:style {:flex 1}}
@@ -48,20 +67,6 @@
       [rn/view {:style {:width        d :height d :border-radius r
                         :border-color :gray
                         :border-width 1}}])))
-
-(defn square-button [icon handler]
-  [touchable/touchable-opacity {:on-press handler}
-   [rn/view {:style {:width 40 :height 40 :justify-content :center}}
-    [ion-icons {:name icon :size 30}]]])
-
-(defn back-button
-  ([title] (back-button title #(re-frame/dispatch [:navigate-back])))
-  ([title handler]
-   [rn/view {:style {:flex-direction :row :align-items :center :margin-horizontal 20
-                     :margin-vertical 10}}
-    [square-button "ios-arrow-back" handler]
-    [rn/text {:style {:font-size 20 :margin-left 10}} title]]))
-
 
 (defn safe-area-consumer [& children]
   [safe-area/safe-area-consumer

@@ -76,7 +76,7 @@
        :on-refresh #(re-frame/dispatch [:get-feed-articles])
        :on-end     #(re-frame/dispatch [:get-more-feed-articles])}]]))
 
-(defn my []
+(defn user-articles []
   (let [loading  @(re-frame/subscribe [:loading])
         articles @(re-frame/subscribe [:filtered-articles])]
     [safe-area/safe-area-view {:style {:flex             1
@@ -114,12 +114,12 @@
 
 (defn home []
   (let [loading  @(re-frame/subscribe [:loading])
-        articles @(re-frame/subscribe [:articles])]
+        articles @(re-frame/subscribe [:global-articles])]
     [ui/safe-area-consumer
      [screen
       {:title      "Global feed"
        :data       articles
        :loading?   (:articles loading)
-       :accesories #(re-frame/dispatch [:navigate-to :tags])
+       :accesories #(re-frame/dispatch [:set-active-page {:page :tags}])
        :on-refresh #(re-frame/dispatch [:get-articles])
        :on-end     #(re-frame/dispatch [:get-more-articles])}]]))

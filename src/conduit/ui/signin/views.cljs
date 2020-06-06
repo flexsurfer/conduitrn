@@ -16,8 +16,7 @@
             errors  @(re-frame/subscribe [:errors])]
         [rn/view {:style {:flex 1}}
          [rn/text {:style {:font-size 30 :align-self :center}} "Sign in"]
-         [ui/button {:title    "Need an account?"
-                     :on-press #(swap! sign-in? not)}]
+         [ui/text-button "Need an account?" #(swap! sign-in? not)]
          (when (:login errors)
            [ui/errors-list (:login errors)])
          [ui/text-input {:style          {:margin-horizontal 20 :margin-vertical 10}
@@ -45,8 +44,7 @@
             errors  @(re-frame/subscribe [:errors])]
         [rn/view {:style {:flex 1}}
          [rn/text {:style {:font-size 30 :align-self :center}} "Sign up"]
-         [ui/button {:title    "Have an account?"
-                     :on-press #(swap! sign-in? not)}]
+         [ui/text-button "Have an account?" #(swap! sign-in? not)]
          (when (:register-user errors)
            [ui/errors-list (:register-user errors)])
          [ui/text-input {:style          {:margin-horizontal 20 :margin-vertical 10}

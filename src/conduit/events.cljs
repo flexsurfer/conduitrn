@@ -17,10 +17,10 @@
 (re-frame/reg-event-fx
  :set-user-from-storage
  (fn [{db :db} [_ user]]
-   (merge (if user                                         ;; if user signed in we can get user data from ls, in that case we navigate to home
+   (merge (if user                                          ;; if user signed in we can get user data from ls, in that case we navigate to home
             {:db       (assoc db :user user)
              :dispatch [:set-active-page {:page :home}]}
-            {:dispatch [:navigate-to :sign-in]})           ;; overwise open sig-in modal screen
+            {:dispatch [:navigate-to :sign-in]})            ;; overwise open sig-in modal screen
           {:hide-splash nil})))
 
 (re-frame/reg-event-fx                                      ;; usage: (dispatch [:set-active-page {:page :home})
@@ -31,35 +31,41 @@
        ;; -- HOME --------------------------------------------------------
        :home {:db         set-page
               :dispatch-n [[:get-articles {:limit 10}]      ;; is NOT logged in we display all articles
-                           [:get-feed-articles {:limit 10}] ;; otherwiser we get her/his feed articles
-                           [:get-tags]]}                    ;; we also can't forget to get tags
+                           [:get-feed-articles {:limit 10}]
+                           [:get-tags]]} ;; otherwiser we get her/his feed articles
 
+       ;; -- TAGS --------------------------------------------------------
+       :tags {:db         set-page
+              :dispatch-n [[:get-tags]
+                           [:navigate-to :tags]]}           ;; get tags
+
+       :tag {:db         (dissoc db :filtered-articles)
+             :dispatch-n [[:get-articles {:tag tag}]
+                          [:navigate-to :tag]]}
        ;; -- EDITOR --------------------------------------------------
-       :editor {:db       set-page
-                :dispatch (if slug                          ;; When we click article to edit we need
-                            [:set-active-article slug]      ;; to set it active or if we want to write
-                            [:reset-active-article])}       ;; a new article we reset
+       :editor {:db (cond-> set-page
+                            slug                            ;; When we click article to edit we need
+                            (assoc :edit-article slug))}
 
        ;; -- ARTICLE -------------------------------------------
-       :article {:db         (assoc set-page :active-article slug)
+       :article {:db         (-> set-page
+                                 (dissoc :comments)
+                                 (dissoc :profile)
+                                 (assoc :active-article slug))
                  :dispatch-n [[:get-article-comments {:slug slug}]
-                              [:get-user-profile {:profile (get-in db [:articles slug :author :username])}]]}
+                              [:get-user-profile {:profile (get-in db [:articles slug :author :username])}]
+                              [:navigate-to :article]]}
 
        ;; -- PROFILE -------------------------------------------
        :profile {:db         (assoc set-page :active-article slug)
                  :dispatch-n [[:get-user-profile {:profile profile}] ;; again for dispatching multiple
                               [:get-articles {:author profile}]]} ;; events we can use :dispatch-n
-       :tag {:db       (dissoc db :filtered-articles)
-             :dispatch-n [[:get-articles {:limit  10
-                                          :offset 0
-                                          :tag tag}]
-                          [:navigate-to :tag]]}
-       :my {:db       (dissoc db :filtered-articles)
-            :dispatch-n [[:get-articles {:author profile}]
-                         [:navigate-to :my]]}
-       :favorited {:db       (dissoc db :filtered-articles) ;; even though we are at :favorited we still
-                   :dispatch-n [[:get-articles {:favorited favorited}]
-                                [:navigate-to :fav]]})))) ;; display :profile with :favorited articles
+       :user-articles {:db         (dissoc db :filtered-articles)
+                       :dispatch-n [[:get-articles {:author profile}]
+                                    [:navigate-to :user-articles]]}
+       :user-favorite {:db         (dissoc db :filtered-articles) ;; even though we are at :favorited we still
+                       :dispatch-n [[:get-articles {:favorited favorited}]
+                                    [:navigate-to :user-favorite]]})))) ;; display :profile with :favorited articles
 
 (re-frame/reg-event-fx                                      ;; usage: (dispatch [:reset-active-article])
  :reset-active-article                                      ;; triggered when the user enters new-article i.e. editor without slug
@@ -73,50 +79,88 @@
     :dispatch-n [[:get-article-comments {:slug slug}]       ;; changne to app-state :db and future event in this case :dispatch-n
                  [:get-user-profile {:profile (get-in db [:articles slug :author :username])}]]}))
 
+(re-frame/reg-event-fx                                      ;; usage: (dispatch [:reset-active-article])
+ :reset-edit-article                                        ;; triggered when the user enters new-article i.e. editor without slug
+ (fn [{db :db} _]                                           ;; 1st paramter in -db events is db, 2nd paramter not important therefore _
+   {:db (dissoc db :edit-article)}))                        ;; compute and return the new state
+
 ;; -- GET Articles @ /api/articles --------------------------------------------
 ;;
-(re-frame/reg-event-fx                                      ;; usage (dispatch [:get-articles {:limit 10 :tag "tag-name" ...}])
- :get-more-articles                                         ;; triggered every time user request articles with differetn params
- (fn [{{:keys [articles articles-count loading filtered-articles-count]} :db} [_ tag]]
-   (let [articles-curr-count (count articles)
-         articles-count (if tag filtered-articles-count articles-count)]
-     (when (and (< articles-curr-count articles-count) (not (:articles loading)))
-       {:dispatch [:get-articles
-                   {:limit  (min 10 (- articles-count articles-curr-count))
-                    :offset articles-curr-count
-                    :tag tag}]}))))
-
 (re-frame/reg-event-fx                                      ;; usage (dispatch [:get-articles {:limit 10 :tag "tag-name" ...}])
  :get-articles                                              ;; triggered every time user request articles with differetn params
  (fn [{:keys [db]} [_ params]]                              ;; params = {:limit 10 :tag "tag-name" ...}
    {:fetch {:method                 :get
-            :url                    (api/endpoint "articles")   ;; evaluates to "api/articles/"
+            :url                    (api/endpoint "articles") ;; evaluates to "api/articles/"
             :params                 params                  ;; include params in the request
-            :headers                (api/auth-header db)        ;; get and pass user token obtained during login
+            :headers                (api/auth-header db)    ;; get and pass user token obtained during login
             :response-content-types {#"application/.*json" :json} ;; json response and all keys to keywords
             :on-success             [:get-articles-success params] ;; trigger get-articles-success event
             :on-failure             [:api-request-error :articles]} ;; trigger api-request-error with :get-articles
     :db    (-> db
                (assoc-in [:loading :articles] true)
-               (assoc-in [:filter :offset] (:offset params)) ;; base on paassed params set a filter
                (assoc-in [:filter :tag] (:tag params))      ;; so that we can easily show and hide
                (assoc-in [:filter :author] (:author params)) ;; appropriate ui components
-               (assoc-in [:filter :favorites] (:favorited params))
-               (assoc-in [:filter :feed] false))}))         ;; we need to disable filter by feed every time since it's not supported query param
+               (assoc-in [:filter :favorites] (:favorited params)))}))
 
 (re-frame/reg-event-fx
  :get-articles-success
  (fn [{db :db} [_ params {body :body}]]
-   (let [{articles :articles articles-count :articlesCount} body]
-     (if (or (:author params) (:favorited params) (:tag params))
-       {:db (-> db
-                (assoc-in [:loading :articles] false)         ;; turn off loading flag for this event
-                (assoc :filtered-articles-count articles-count)
-                (assoc :filtered-articles (utils/index-by :slug articles)))}
-       {:db (-> db
-                (assoc-in [:loading :articles] false)         ;; turn off loading flag for this event
-                (assoc :articles-count articles-count         ;; change app-state by adding articles-count
-                       :articles (utils/index-by :slug (concat (vals (:articles db)) articles))))}))))  ;; and articles, which we index-by slug
+   (let [{articles :articles articles-count :articlesCount} body
+         articles  (utils/index-by :slug articles)
+         filtered? (or (:author params) (:favorited params) (:tag params))]
+     {:db (-> db
+              (assoc-in [:loading :articles] false)         ;; turn off loading flag for this event
+              (update :articles merge articles)             ;; all articles, which we index-by slug
+              (update (if filtered? :filtered-articles :global-articles) #(apply conj % (keys articles)))
+              (assoc (if filtered? :filtered-articles-count :global-articles-count) articles-count))})))
+
+(re-frame/reg-event-fx                                      ;; usage (dispatch [:get-more-articles {:tag "tag-name" ...}])
+ :get-more-articles                                         ;; triggered every time user request more articles with differetn params
+ (fn [{{:keys [global-articles global-articles-count loading filtered-articles-count] :as db} :db} [_ tag]]
+   (let [articles-curr-count (count global-articles)
+         articles-count      (if tag filtered-articles-count global-articles-count)]
+     (when (and (< articles-curr-count articles-count) (not (:articles loading)))
+       {:db       (assoc-in db [:loading :articles] true)
+        :dispatch [:get-articles
+                   {:limit  (min 10 (- articles-count articles-curr-count))
+                    :offset articles-curr-count
+                    :tag    tag}]}))))
+
+;; -- GET Feed Articles @ /api/articles/feed ----------------------------------
+;;
+
+(re-frame/reg-event-fx                                      ;; usage (dispatch [:get-feed-articles {:limit 10 :offset 0 ...}])
+ :get-feed-articles                                         ;; triggered when Your Feed tab is loaded
+ (fn [{:keys [db]} [_ params]]                              ;; params = {:offset 0 :limit 10}
+   {:fetch {:method                 :get
+            :url                    (api/endpoint "articles" "feed") ;; evaluates to "api/articles/feed"
+            :params                 params                  ;; include params in the request
+            :headers                (api/auth-header db)    ;; get and pass user token obtained during login
+            :response-content-types {#"application/.*json" :json} ;; json response and all keys to keywords
+            :on-success             [:get-feed-articles-success] ;; trigger get-articles-success event
+            :on-failure             [:api-request-error :feed-articles]} ;; trigger api-request-error with :get-feed-articles
+    :db    (assoc-in db [:loading :feed-articles] true)}))
+
+(re-frame/reg-event-fx
+ :get-feed-articles-success
+ (fn [{db :db} [_ {body :body}]]
+   (let [{articles :articles articles-count :articlesCount} body
+         articles (utils/index-by :slug articles)]
+     {:db (-> db
+              (assoc-in [:loading :feed-articles] false)
+              (update :articles merge articles)
+              (assoc :feed-articles-count articles-count)
+              (update :feed-articles #(apply conj % (keys articles))))})))
+
+(re-frame/reg-event-fx                                      ;; usage (dispatch [:get-articles {:limit 10 :tag "tag-name" ...}])
+ :get-more-feed-articles                                    ;; triggered every time user request articles with differetn params
+ (fn [{{:keys [feed-articles feed-articles-count loading] :as db} :db} _]
+   (let [articles-curr-count (count feed-articles)]
+     (when (and (< articles-curr-count feed-articles-count) (not (:feed-articles loading)))
+       {:db       (assoc-in db [:loading :feed-articles] true)
+        :dispatch [:get-feed-articles
+                   {:limit  (min 10 (- feed-articles-count articles-curr-count))
+                    :offset articles-curr-count}]}))))
 
 ;; -- GET Article @ /api/articles/:slug ---------------------------------------
 ;;
@@ -125,7 +169,7 @@
  (fn [{:keys [db]} [_ params]]                              ;; params = {:slug "slug"}
    {:fetch {:method                 :get
             :url                    (api/endpoint "articles" (:slug params)) ;; evaluates to "api/articles/:slug"
-            :headers                (api/auth-header db)        ;; get and pass user token obtained during login
+            :headers                (api/auth-header db)    ;; get and pass user token obtained during login
             :response-content-types {#"application/.*json" :json} ;; json response and all keys to keywords
             :on-success             [:get-article-success]  ;; trigger get-article-success event
             :on-failure             [:api-request-error :get-article]} ;; trigger api-request-error with :get-articles
@@ -137,38 +181,36 @@
    (let [{article :article} body]
      {:db (-> db
               (assoc-in [:loading :article] false)
-              (assoc :articles (utils/index-by :slug [article])))})))
+              (assoc-in [:articles (:slug article)] article))})))
 
 ;; -- POST/PUT Article @ /api/articles(/:slug) --------------------------------
 ;;
 (re-frame/reg-event-fx                                      ;; usage (dispatch [:upsert-article article])
  :upsert-article                                            ;; when we update or insert (upsert) we are sending the same shape of information
- (fn [{:keys [db]} [_ params]]                              ;; params = {:slug "article-slug" :article {:body "article body"} }
+ (fn [{:keys [db]} [_ params cb]]                           ;; params = {:slug "article-slug" :article {:body "article body"} }
    {:db    (assoc-in db [:loading :article] true)
     :fetch {:method                 (if (:slug params) :put :post) ;; when we get a slug we'll update (:put) otherwise insert (:post)
             :url                    (if (:slug params)      ;; Same logic as above but we go with different
                                       (api/endpoint "articles" (:slug params)) ;; endpoint - one with :slug to update
                                       (api/endpoint "articles")) ;; and another to insert
-            :headers                (api/auth-header db)        ;; get and pass user token obtained during login
+            :headers                (api/auth-header db)    ;; get and pass user token obtained during login
             :body                   {:article (:article params)}
             :request-content-type   :json                   ;; make sure we are doing request format wiht json
             :response-content-types {#"application/.*json" :json} ;; json response and all keys to keywords
-            :on-success             [:upsert-article-success] ;; trigger upsert-article-success event
+            :on-success             [:upsert-article-success cb] ;; trigger upsert-article-success event
             :on-failure             [:api-request-error :upsert-article]}})) ;; trigger api-request-error with :upsert-article
 
 (re-frame/reg-event-fx
  :upsert-article-success
- (fn [{:keys [db]} [_ {body :body}]]
+ (fn [{:keys [db]} [_ cb {body :body}]]
    (let [{article :article} body]
-     {:db         (-> db
-                      (assoc-in [:loading :article] false)
-                      (dissoc :comments)                    ;; clean up any comments that we might have in db
-                      (dissoc :errors)                      ;; clean up any erros that we might have in db
-                      (assoc :active-page :article
-                             :active-article (:slug article)))
-      :dispatch-n [[:get-article {:slug (:slug article)}]   ;; when the users clicks save we fetch the new version
-                   [:get-article-comments {:slug (:slug article)}]
-                   [:navigate-to :article]]}))) ;; of the article and comments from the server
+     (cb)
+     {:db       (-> db
+                    (assoc-in [:loading :article] false)
+                    (dissoc :errors)                        ;; clean up any erros that we might have in db
+                    (assoc-in [:articles (:slug article)] article))
+      :dispatch [:set-active-page {:page :article
+                                   :slug (:slug article)}]}))) ;; of the article and comments from the server
 
 ;; -- DELETE Article @ /api/articles/:slug ------------------------------------
 ;;
@@ -178,7 +220,7 @@
    {:db    (assoc-in db [:loading :article] true)
     :fetch {:method                 :delete
             :url                    (api/endpoint "articles" slug) ;; evaluates to "api/articles/:slug"
-            :headers                (api/auth-header db)        ;; get and pass user token obtained during login
+            :headers                (api/auth-header db)    ;; get and pass user token obtained during login
             :body                   slug                    ;; pass the article slug to delete
             :request-content-type   :json                   ;; make sure we are doing request format wiht json
             :response-content-types {#"application/.*json" :json} ;; json response and all keys to keywords
@@ -193,44 +235,6 @@
                   (assoc-in [:loading :article] false))
     :dispatch [:set-active-page {:page :home}]}))
 
-;; -- GET Feed Articles @ /api/articles/feed ----------------------------------
-;;
-(re-frame/reg-event-fx                                      ;; usage (dispatch [:get-articles {:limit 10 :tag "tag-name" ...}])
- :get-more-feed-articles                                         ;; triggered every time user request articles with differetn params
- (fn [{{:keys [feed-articles feed-articles-count loading]} :db} _]
-   (let [articles-curr-count (count feed-articles)]
-     (when (and (< articles-curr-count feed-articles-count) (not (:feed-articles loading)))
-       {:dispatch [:get-feed-articles
-                   {:limit  (min 10 (- feed-articles-count articles-curr-count))
-                    :offset articles-curr-count}]}))))
-
-(re-frame/reg-event-fx                                      ;; usage (dispatch [:get-feed-articles {:limit 10 :offset 0 ...}])
- :get-feed-articles                                         ;; triggered when Your Feed tab is loaded
- (fn [{:keys [db]} [_ params]]                              ;; params = {:offset 0 :limit 10}
-   {:fetch {:method                 :get
-            :url                    (api/endpoint "articles" "feed") ;; evaluates to "api/articles/feed"
-            :params                 params                  ;; include params in the request
-            :headers                (api/auth-header db)        ;; get and pass user token obtained during login
-            :response-content-types {#"application/.*json" :json} ;; json response and all keys to keywords
-            :on-success             [:get-feed-articles-success] ;; trigger get-articles-success event
-            :on-failure             [:api-request-error :feed-articles]} ;; trigger api-request-error with :get-feed-articles
-    :db    (-> db
-               (assoc-in [:loading :feed-articles] true)
-               (assoc-in [:filter :offset] (:offset params))
-               (assoc-in [:filter :tag] nil)                ;; with feed-articles we turn off almost all
-               (assoc-in [:filter :author] nil)             ;; filters to make sure everythinig on the
-               (assoc-in [:filter :favorites] nil)          ;; client is displayed correctly.
-               (assoc-in [:filter :feed] true))}))          ;; This is the only one we need
-
-(re-frame/reg-event-fx
- :get-feed-articles-success
- (fn [{db :db} [_ {body :body}]]
-   (let [{articles :articles, articles-count :articlesCount} body]
-     {:db (-> db
-              (assoc-in [:loading :feed-articles] false)
-              (assoc :feed-articles-count articles-count
-                     :feed-articles (utils/index-by :slug (concat (vals (:feed-articles db)) articles))))})))
-
 ;; -- GET Tags @ /api/tags ----------------------------------------------------
 ;;
 (re-frame/reg-event-fx                                      ;; usage (dispatch [:get-tags])
@@ -238,7 +242,7 @@
  (fn [{:keys [db]} _]                                       ;; second parameter is not important, therefore _
    {:db    (assoc-in db [:loading :tags] true)
     :fetch {:method                 :get
-            :url                    (api/endpoint "tags")       ;; evaluates to "api/tags"
+            :url                    (api/endpoint "tags")   ;; evaluates to "api/tags"
             :response-content-types {#"application/.*json" :json} ;; json response and all keys to keywords
             :on-success             [:get-tags-success]     ;; trigger get-tags-success event
             :on-failure             [:api-request-error :get-tags]}})) ;; trigger api-request-error with :get-tags
@@ -259,7 +263,7 @@
    {:db    (assoc-in db [:loading :comments] true)
     :fetch {:method                 :get
             :url                    (api/endpoint "articles" (:slug params) "comments") ;; evaluates to "api/articles/:slug/comments"
-            :headers                (api/auth-header db)        ;; get and pass user token obtained during login
+            :headers                (api/auth-header db)    ;; get and pass user token obtained during login
             :response-content-types {#"application/.*json" :json} ;; json response and all keys to keywords
             :on-success             [:get-article-comments-success] ;; trigger get-article-comments-success
             :on-failure             [:api-request-error :get-article-comments]}})) ;; trigger api-request-error with :get-article-comments
@@ -280,26 +284,19 @@
    {:db    (assoc-in db [:loading :comments] true)
     :fetch {:method                 :post
             :url                    (api/endpoint "articles" (:active-article db) "comments") ;; evaluates to "api/articles/:slug/comments"
-            :headers                (api/auth-header db)        ;; get and pass user token obtained during login
+            :headers                (api/auth-header db)    ;; get and pass user token obtained during login
             :body                   {:comment body}
             :request-content-type   :json                   ;; make sure we are doing request format wiht json
             :response-content-types {#"application/.*json" :json} ;; json response and all keys to keywords
             :on-success             [:post-comment-success] ;; trigger get-articles-success
             :on-failure             [:api-request-error :comments]}})) ;; trigger api-request-error with :comments
 
-(defn update-comments [db key comment]
-  (if (get-in db [key (:active-article db)])
-    (assoc-in db [key (:active-article db) :comments] comment)
-    db))
-
 (re-frame/reg-event-fx
  :post-comment-success
  (fn [{:keys [db]} [_ {comment :body}]]
    {:db       (-> db
                   (assoc-in [:loading :comments] false)
-                  (update-comments :articles comment)
-                  (update-comments :feed-articles comment)
-                  (update-comments :filtered-articles comment)
+                  (assoc-in [:articles (:active-article db) :comments] comment)
                   (update-in [:errors] dissoc :comments))   ;; clean up errors, if any
     :dispatch [:get-article-comments {:slug (:active-article db)}]}))
 
@@ -313,7 +310,7 @@
              (assoc db :active-comment comment-id))
     :fetch {:method                 :delete
             :url                    (api/endpoint "articles" (:active-article db) "comments" comment-id) ;; evaluates to "api/articles/:slug/comments/:comment-id"
-            :headers                (api/auth-header db)        ;; get and pass user token obtained during login
+            :headers                (api/auth-header db)    ;; get and pass user token obtained during login
             :request-content-type   :json                   ;; make sure we are doing request format wiht json
             :response-content-types {#"application/.*json" :json} ;; json response and all keys to keywords
             :on-success             [:delete-comment-success] ;; trigger delete-comment-success
@@ -335,7 +332,7 @@
    {:db    (assoc-in db [:loading :profile] true)
     :fetch {:method                 :get
             :url                    (api/endpoint "profiles" (:profile params)) ;; evaluates to "api/profiles/:profile"
-            :headers                (api/auth-header db)        ;; get and pass user token obtained during login
+            :headers                (api/auth-header db)    ;; get and pass user token obtained during login
             :response-content-types {#"application/.*json" :json} ;; json response and all keys to keywords
             :on-success             [:get-user-profile-success] ;; trigger get-user-profile-success
             :on-failure             [:api-request-error :get-user-profile]}})) ;; trigger api-request-error with :get-user-profile
@@ -375,9 +372,8 @@
          user (merge (:user db) props)]
      {:db               (assoc db :user user)
       :store-user-in-ls user
-      :dispatch-n       [[:navigate-back]
-                         [:get-feed-articles {:tag nil :author nil :offset 0 :limit 10}]
-                         [:set-active-page {:page :home}]]})))
+      :dispatch-n       [[:set-active-page {:page :home}]
+                         [:navigate-back]]})))
 
 ;; -- POST Registration @ /api/users ------------------------------------------
 ;;
@@ -386,7 +382,7 @@
  (fn [{:keys [db]} [_ registration]]                        ;; registration = {:username ... :email ... :password ...}
    {:db    (assoc-in db [:loading :register-user] true)
     :fetch {:method                 :post
-            :url                    (api/endpoint "users")      ;; evaluates to "api/users"
+            :url                    (api/endpoint "users")  ;; evaluates to "api/users"
             :body                   {:user registration}    ;; {:user {:username ... :email ... :password ...}}
             :request-content-type   :json                   ;; make sure it's json
             :response-content-types {#"application/.*json" :json} ;; json response and all keys to keywords
@@ -416,9 +412,9 @@
  (fn [{:keys [db]} [_ user]]                                ;; user = {:img ... :username ... :bio ... :email ... :password ...}
    {:db    (assoc-in db [:loading :update-user] true)
     :fetch {:method                 :put
-            :url                    (api/endpoint "user")       ;; evaluates to "api/user"
+            :url                    (api/endpoint "user")   ;; evaluates to "api/user"
             :body                   {:user user}            ;; {:user {:img ... :username ... :bio ... :email ... :password ...}}
-            :headers                (api/auth-header db)        ;; get and pass user token obtained during login
+            :headers                (api/auth-header db)    ;; get and pass user token obtained during login
             :request-content-type   :json                   ;; make sure our request is json
             :response-content-types {#"application/.*json" :json} ;; json response and all keys to keywords
             :on-success             [:update-user-success]  ;; trigger update-user-success
@@ -448,7 +444,7 @@
    {:db    (assoc-in db [:loading :toggle-follow-user] true)
     :fetch {:method                 (if (get-in db [:profile :following]) :delete :post) ;; check if we follow if yes DELETE, no POST
             :url                    (api/endpoint "profiles" username "follow") ;; evaluates to "api/profiles/:username/follow"
-            :headers                (api/auth-header db)        ;; get and pass user token obtained during login
+            :headers                (api/auth-header db)    ;; get and pass user token obtained during login
             :request-content-type   :json                   ;; make sure it's json
             :response-content-types {#"application/.*json" :json} ;; json response and all keys to keywords
             :on-success             [:toggle-follow-user-success] ;; trigger toggle-follow-user-success
@@ -458,44 +454,36 @@
  :toggle-follow-user-success
  (fn [{db :db} [_ {body :body}]]
    (let [{profile :profile} body]
-     {:db (-> db
-              (assoc-in [:loading :toggle-follow-user] false)
-              (assoc-in [:profile :following] (:following profile)))
+     {:db       (-> db
+                    (assoc-in [:loading :toggle-follow-user] false)
+                    (assoc-in [:profile :following] (:following profile)))
       :dispatch [:get-feed-articles {:limit 10}]})))
 
 ;; -- Toggle favorite article @ /api/articles/:slug/favorite ------------------
 ;;
 (defn update-fav [db key slug favorited article]
-  (if (get-in db [key slug])
-    (-> db
+  (-> db
       (assoc-in [key slug :favorited] favorited)
       (assoc-in [key slug :favoritesCount] (if favorited
                                              (:favoritesCount article inc)
-                                             (:favoritesCount article dec))))
-    db))
+                                             (:favoritesCount article dec)))))
 
 (defn preupdate-fav [db key slug]
-  (if (get-in db [key slug])
-    (update-in db [key slug]
-               #(-> %
-                    (update :favoritesCount (if (:favorited %) dec inc))
-                    (update :favorited not)))
-    db))
+  (update-in db [key slug]
+             #(-> %
+                  (update :favoritesCount (if (:favorited %) dec inc))
+                  (update :favorited not))))
 
 (re-frame/reg-event-fx                                      ;; usage (dispatch [:toggle-favorite-article slug])
  :toggle-favorite-article                                   ;; triggered when user clicks favorite/unfavorite button on profile page
  (fn [{:keys [db]} [_ slug]]                                ;; slug = :slug
    {:db    (-> db
                (assoc-in [:loading :toggle-favorite-article] true)
-               (preupdate-fav :articles slug)
-               (preupdate-fav :feed-articles slug)
-               (preupdate-fav :filtered-articles slug))
-    :fetch {:method                 (if (or (get-in db [:articles slug :favorited])
-                                            (get-in db [:feed-articles slug :favorited])
-                                            (get-in db [:filtered-articles slug :favorited]))
-                                      :delete :post) ;; check if article is already favorite: yes DELETE, no POST
+               (preupdate-fav :articles slug))
+    :fetch {:method                 (if (get-in db [:articles slug :favorited])
+                                      :delete :post)        ;; check if article is already favorite: yes DELETE, no POST
             :url                    (api/endpoint "articles" slug "favorite") ;; evaluates to "api/articles/:slug/favorite"
-            :headers                (api/auth-header db)        ;; get and pass user token obtained during login
+            :headers                (api/auth-header db)    ;; get and pass user token obtained during login
             :request-content-type   :json                   ;; make sure it's json
             :response-content-types {#"application/.*json" :json} ;; json response and all keys to keywords
             :on-success             [:toggle-favorite-article-success] ;; trigger toggle-favorite-article-success
@@ -509,10 +497,7 @@
          favorited (:favorited article)]
      {:db (-> db
               (assoc-in [:loading :toggle-favorite-article] false)
-              (update-fav :articles slug favorited article)
-              (update-fav :feed-articles slug favorited article)
-              (update-fav :filtered-articles slug favorited article))})))
-
+              (update-fav :articles slug favorited article))})))
 
 ;; -- Logout ------------------------------------------------------------------
 ;;
@@ -521,7 +506,7 @@
  ;; The event handler function removes the user from
  ;; app-state = :db and sets the url to "/".
  (fn [{:keys [db]} _]
-   {:db                  (dissoc db :user)                  ;; remove user from db
+   {:db                  db/default-db
     :remove-user-from-ls nil
     :dispatch            [:navigate-to :sign-in]}))
 

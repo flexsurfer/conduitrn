@@ -16,14 +16,17 @@
     " "
     favoritesCount]])
 
-(defn follow [username]
-  (let [{:keys [following]} @(re-frame/subscribe [:profile])]
-    [touchable/touchable-opacity
-     {:on-press #(re-frame/dispatch [:toggle-follow-user username])}
-     [rn/view {:style {:align-items  :center :justify-content :center
-                       :align-self   :flex-start :padding-horizontal 4 :border-radius 2
-                       :border-width 1 :border-color "rgba(100,100,100,0.4)"}}
-      [rn/text (if following " - Unfollow" " + Follow")]]]))
+(defn follow [username profile]
+  [rn/view {:style {:height 25}}
+   (when profile
+     (let [{:keys [following]} profile]
+       [touchable/touchable-opacity
+        {:on-press #(re-frame/dispatch [:toggle-follow-user username])}
+        [rn/view {:style {:align-items  :center :justify-content :center
+                          :align-self   :flex-start :padding-horizontal 4 :border-radius 2
+                          :border-width 1 :border-color "rgba(100,100,100,0.4)"}}
+         [rn/text (if following " - Unfollow" " + Follow")]]]))])
+
 
 (defn edit [slug]
   [touchable/touchable-opacity
@@ -38,7 +41,7 @@
   [touchable/touchable-opacity
    {:on-press #(re-frame/dispatch [:delete-comment id])}
    [rn/view {:style {:align-items  :center :justify-content :center
-                     :margin-left 10
+                     :margin-left  10
                      :align-self   :flex-start :padding-horizontal 4 :border-radius 2
                      :border-width 1 :border-color "rgba(100,100,100,0.4)"}}
     [rn/text "Delete"]]])
@@ -87,15 +90,14 @@
         @(re-frame/subscribe [:active-article])
         user     @(re-frame/subscribe [:user])
         comments @(re-frame/subscribe [:comments])
-        errors   @(re-frame/subscribe [:errors])
-        loading  @(re-frame/subscribe [:loading])
+        profile  @(re-frame/subscribe [:profile])
         username (:username author)]
     [safe-area/safe-area-view {:style {:flex             1
                                        :background-color :white}}
      [ui/back-button "" #(do
                            (re-frame/dispatch [:reset-active-article])
                            (re-frame/dispatch [:navigate-back]))]
-     [rn/scroll-view {:style {:flex 1}
+     [rn/scroll-view {:style                     {:flex 1}
                       :keyboardShouldPersistTaps :always}
       [rn/view {:style {:margin-horizontal 20 :flex 1}}
        [rn/view {:style {:flex-direction :row :flex 1 :align-items :center}}
@@ -112,6 +114,6 @@
          [rn/text {:style {:color :gray}} " · " (utils/format-date createdAt)]]]
        (if (= username (:username user))
          [edit slug]
-         [follow username])
+         [follow username profile])
        [rn/text {:style {:font-size 20 :margin-top 30}} body]
        [comments-view comments (:username user)]]]]))

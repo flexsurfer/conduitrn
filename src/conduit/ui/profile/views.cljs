@@ -32,49 +32,11 @@
        [rn/text {:style           {:color :gray}
                  :number-of-lines 4} bio]]
       [rn/view
-       [profile-item "My articles" #(re-frame/dispatch [:set-active-page {:page    :my
+       [profile-item "My articles" #(re-frame/dispatch [:set-active-page {:page    :user-articles
                                                                           :profile username}])
         true false]
-       [profile-item "Favorited Articles" #(re-frame/dispatch [:set-active-page {:page      :favorited
+       [profile-item "Favorited Articles" #(re-frame/dispatch [:set-active-page {:page      :user-favorite
                                                                                  :favorited username}])
         false false]
        [rn/view {:style {:height 50}}]
        [profile-item "Logout" #(re-frame/dispatch [:logout]) false true]]]]))
-
-(defn profile-old
-  []
-  (let [{:keys [image username bio following] :or {username ""}} @(re-frame/subscribe [:profile])
-        {:keys [author favorites]} @(re-frame/subscribe [:filter])
-        loading  @(re-frame/subscribe [:loading])
-        articles @(re-frame/subscribe [:articles])
-        user     @(re-frame/subscribe [:user])]
-    [:div.profile-page
-     [:div.user-info
-      [:div.container
-       [:div.row
-        [:div.col-xs-12.col-md-10.offset-md-1
-         [:img.user-img {:src image :alt "user image"}]
-         [:h4 username]
-         [:p bio]
-         (if (= (:username user) username)
-           [:a.btn.btn-sm.btn-outline-secondary.action-btn  ;{:href (url-for :settings)}
-            [:i.ion-gear-a] " Edit Profile Settings"]
-           [:button.btn.btn-sm.action-btn.btn-outline-secondary
-            {:on-click #(re-frame/dispatch [:toggle-follow-user username])
-             :class    (when (:toggle-follow-user loading) "disabled")}
-            [:i {:class (if following "ion-minus-round" "ion-plus-round")}]
-            [:span (if following (str " Unfollow " username) (str " Follow " username))]])]]]]
-     [:div.container
-      [:div.row
-       [:div.col-xs-12.col-md-10.offset-md-1
-        [:div.articles-toggle
-         [:ul.nav.nav-pills.outline-active
-          [:li.nav-item
-           [:a.nav-link                                     ;{:href (url-for :profile :user-id username)
-            ;:class (when author " active")
-            "My Articles"]]
-          [:li.nav-item
-           [:a.nav-link {;:href (url-for :favorited :user-id username)
-                         :class (when favorites "active")}
-            "Favorited Articles"]]]]]]]]))
-;[articles-list articles (:articles loading)]]]]]))

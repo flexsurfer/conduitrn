@@ -6,14 +6,9 @@
             [steroid.rn.core :as rn]
             [steroid.rn.components.touchable :as touchable]))
 
-#_(for [tag tags]
-    ^{:key tag} [:a.tag-pill.tag-default {:href     (url-for :home)
-                                          :on-click #(get-articles % {:tag    tag
-                                                                      :limit  10
-                                                                      :offset 0})} tag])
 (defn tags-list-item [tag]
   [touchable/touchable-opacity {:on-press #(re-frame/dispatch [:set-active-page {:page :tag
-                                                                                 :tag    tag}])}
+                                                                                 :tag  tag}])}
    [rn/view {:style {:margin-horizontal 20 :margin-vertical 10}}
     [rn/text {:style {:font-weight "700" :color "#5cb85c" :font-size 18}} (str "#" tag)]]])
 
@@ -24,6 +19,6 @@
                                         :background-color :white}}
       [ui/back-button "Tags"]
       [list/flat-list
-       {:key-fn                identity
-        :data                  tags
-        :render-fn             tags-list-item}]]]))
+       {:key-fn    identity
+        :data      tags
+        :render-fn tags-list-item}]]]))

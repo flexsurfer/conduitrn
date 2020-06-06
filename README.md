@@ -25,12 +25,12 @@ git clone https://github.com/flexsurfer/conduitrn.git && cd conduitrn
 
 #### Install dependencies
 ```shell
-yarn install || npm install
+yarn || npm install
 ```
 
 #### Install pods for ios
 ```shell
-cd ios; pod install; cd ../
+cd ios && pod install && cd ../
 ```
 
 #### Run dev server

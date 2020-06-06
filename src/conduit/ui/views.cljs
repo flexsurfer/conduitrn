@@ -63,20 +63,14 @@
         :component signin/sign-in-modal
         :options   {:gestureEnabled false}}
        {:name      :settings
-        :component settings/settings
-        :options   {:gestureEnabled false}}
+        :component settings/settings}
        {:name      :article
-        :component article/article
-        :options   {:gestureEnabled false}}
-       {:name      :fav
-        :component home/fav
-        :options   {:gestureEnabled false}}
-       {:name      :my
-        :component home/my
-        :options   {:gestureEnabled false}}
+        :component article/article}
+       {:name      :user-favorite
+        :component home/fav}
+       {:name      :user-articles
+        :component home/user-articles}
        {:name      :tags
-        :component tags/tags
-        :options   {:gestureEnabled false}}
+        :component tags/tags}
        {:name      :tag
-        :component home/tag
-        :options   {:gestureEnabled false}}]])]])
+        :component home/tag}]])]])
