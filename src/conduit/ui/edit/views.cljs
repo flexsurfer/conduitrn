@@ -11,15 +11,16 @@
     (doseq [ref @refs]
       (.clear ^js ref))))
 
-(defn upsert-article [content refs slug]
-  (re-frame/dispatch
-   [:upsert-article
-    {:slug    slug
-     :article {:title       (string/trim (or (:title content) ""))
-               :description (string/trim (or (:description content) ""))
-               :body        (string/trim (or (:body content) ""))
-               :tagList     (string/split (:tagList content) #" ")}}
-    (reset-fields content refs)]))
+(defn upsert-article [default content-atom refs slug]
+  (let [content (merge default @content-atom)]
+    (re-frame/dispatch
+     [:upsert-article
+      {:slug    slug
+       :article {:title       (string/trim (or (:title content) ""))
+                 :description (string/trim (or (:description content) ""))
+                 :body        (string/trim (or (:body content) ""))
+                 :tagList     (string/split (:tagList content) #" ")}}
+      (reset-fields content-atom refs)])))
 
 (defn editor []
   (let [content (atom {})
@@ -54,8 +55,9 @@
                            :on-change-text #(swap! content assoc :tagList %)
                            :placeholder    "Enter tags"
                            :default-value  (str tagList)}]
-           [ui/button {:on-press #(upsert-article (merge {:title title :description description
-                                                          :body body :tagList tagList :slug slug} @content)
+           [ui/button {:on-press #(upsert-article {:title title :description description
+                                                   :body body :tagList tagList :slug slug}
+                                                  content
                                                   refs
                                                   slug)
                        :title    (if active-article
