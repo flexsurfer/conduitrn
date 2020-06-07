@@ -4,7 +4,7 @@
 
 > ### [ClojureScript](https://clojurescript.org/) and [re-frame](https://github.com/Day8/re-frame) codebase containing real world examples (CRUD, auth, advanced patterns, etc) that adheres to the [RealWorld](https://github.com/gothinkster/realworld-example-apps) spec and API.
 
-### [App creation process and demo (youtube)]() &nbsp;&nbsp;&nbsp;&nbsp; [Demo APK]() &nbsp;&nbsp;&nbsp;&nbsp; [RealWorld](https://github.com/gothinkster/realworld)
+### [App creation process and demo (youtube)](https://www.youtube.com/watch?v=5k2T126JFCY) &nbsp;&nbsp;&nbsp;&nbsp; [Demo APK](app-release.apk) &nbsp;&nbsp;&nbsp;&nbsp; [RealWorld](https://github.com/gothinkster/realworld)
 
 This codebase was created to demonstrate a fully fledged react native application built with
 [ClojureScript](https://clojurescript.org/) and [re-frame](https://github.com/Day8/re-frame) including CRUD operations,
