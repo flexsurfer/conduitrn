@@ -28,7 +28,8 @@
     "react-native-safe-area-context": "^3.0.2",
     "react-native-screens": "^2.8.0",
     "react-native-splash-screen": "^3.2.0",
-    "react-native-vector-icons": "^6.6.0"
+    "react-native-vector-icons": "^6.6.0",
+    "shadow-cljs": "^2.11.4"
   },
   "devDependencies": {
     "@babel/core": "^7.9.6",
